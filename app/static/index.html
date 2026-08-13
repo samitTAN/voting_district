@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>自己的選區自己畫</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <h1>自己的選區自己畫</h1>
+  <label>
+    縣市：
+    <select id="county-select"><option value="">請選擇縣市…</option></select>
+  </label>
+</header>
+<div class="layout">
+  <div id="map"></div>
+  <aside class="sidebar">
+    <section>
+      <h2>指派進度</h2>
+      <div class="progress" id="progress">請先選擇縣市</div>
+    </section>
+    <section>
+      <h2>作用中選區</h2>
+      <div class="district-toolbar" id="district-toolbar"></div>
+    </section>
+    <section>
+      <h2>各選區狀態</h2>
+      <div id="district-cards"></div>
+    </section>
+    <section>
+      <h2>警告</h2>
+      <ul class="warn-list" id="warn-list"><li class="none">請先選擇縣市</li></ul>
+    </section>
+    <section>
+      <label class="overlay-toggle">
+        <input type="checkbox" id="official-toggle" />
+        疊顯現行官方選區（僅外框）
+      </label>
+    </section>
+  </aside>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="/app.js"></script>
+</body>
+</html>

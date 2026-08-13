@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["data_pipeline", "districting"]
+packages = ["data_pipeline", "districting", "app"]
 
 [project]
 name = "voting-district"
@@ -12,12 +12,15 @@ description = "自己的選區自己畫 — 選區重劃參與式工具"
 requires-python = ">=3.14"
 dependencies = [
     "requests>=2.34",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=9.1",
     "mypy>=1.13",
+    "httpx>=0.27",
 ]
 
 [tool.pytest.ini_options]
