@@ -12,14 +12,24 @@ This repository is in the earliest planning/setup stage: no application code exi
 
 ## Development environment
 
-The project uses Python via a local `venv` (currently just base `pip`/`setuptools`, no dependencies installed yet):
+The project uses Python 3.14 via a local `venv` (currently just base `pip`/`setuptools`, no dependencies installed yet):
 
 ```bash
-python3 -m venv venv
+python3.14 -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 ```
 
 `venv/` is gitignored — each developer creates their own local environment; it is not committed.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as GitHub Issues in samitTAN/voting_district, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
 ## License
 
