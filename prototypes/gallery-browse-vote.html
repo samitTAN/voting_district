@@ -1,0 +1,724 @@
+<!--
+  PROTOTYPE — throwaway code, not production.
+  Resolves wayfinder ticket #7 (原型：陳列室（比較/瀏覽/按讚）頁面的呈現與排序設計),
+  child of map #2 (自己的選區自己畫 v0 產品規格書), repo samitTAN/voting_district.
+
+  Three structurally different layouts for the public gallery (browse shared plans,
+  like/dislike, sort/filter), plus one shared single-plan detail/comparison view.
+  Switchable via ?variant=A|B|C. Fake plans across fake counties — no real geodata,
+  since the question is purely "how should browsing/sorting/comparing feel".
+
+  Sub-shape B (new page) per the /prototype skill's UI.md — no existing app/routing
+  convention yet, so this is a single self-contained file. Reuses the same color
+  tokens and type stack validated in ticket #6's prototype (prototype/village-assignment-interaction)
+  for visual continuity across the product.
+-->
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>原型：陳列室 — 呈現與排序設計</title>
+<style>
+  :root {
+    --paper: #f1ece2;
+    --surface: #fbf8f2;
+    --surface-2: #ffffff;
+    --ink: #262019;
+    --ink-dim: #6b6152;
+    --line: #d9cfc0;
+    --line-strong: #b8ac96;
+    --accent: #6d4f96;
+    --accent-ink: #ffffff;
+    --d1: #c98a3e;
+    --d2: #3c7a78;
+    --d3: #a85a72;
+    --d4: #8a6a4f;
+    --ok: #4b7a5e;
+    --caution: #a3711f;
+    --like: #4b7a5e;
+    --dislike: #a4392b;
+    --shadow: 0 10px 30px -12px rgba(38, 32, 25, 0.35);
+    --radius: 10px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1b1714; --surface: #24201a; --surface-2: #2c2620;
+      --ink: #eee7da; --ink-dim: #a89c88; --line: #3a332b; --line-strong: #52493c;
+      --accent: #b79be0; --accent-ink: #1c1424;
+      --d1: #d9a03c; --d2: #6fb0ad; --d3: #cf90a3; --d4: #b6906f;
+      --ok: #7fb894; --caution: #d9a94a; --like: #7fb894; --dislike: #e08373;
+      --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1b1714; --surface: #24201a; --surface-2: #2c2620;
+    --ink: #eee7da; --ink-dim: #a89c88; --line: #3a332b; --line-strong: #52493c;
+    --accent: #b79be0; --accent-ink: #1c1424;
+    --d1: #d9a03c; --d2: #6fb0ad; --d3: #cf90a3; --d4: #b6906f;
+    --ok: #7fb894; --caution: #d9a94a; --like: #7fb894; --dislike: #e08373;
+    --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --paper: #f1ece2; --surface: #fbf8f2; --surface-2: #ffffff;
+    --ink: #262019; --ink-dim: #6b6152; --line: #d9cfc0; --line-strong: #b8ac96;
+    --accent: #6d4f96; --accent-ink: #ffffff;
+    --d1: #c98a3e; --d2: #3c7a78; --d3: #a85a72; --d4: #8a6a4f;
+    --ok: #4b7a5e; --caution: #a3711f; --like: #4b7a5e; --dislike: #a4392b;
+    --shadow: 0 10px 30px -12px rgba(38, 32, 25, 0.35);
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 14px/1.6 "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .nums { font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace; font-variant-numeric: tabular-nums; }
+  a { color: var(--accent); }
+  button, select { font: inherit; }
+  button:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  header.topbar {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+    padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--surface);
+  }
+  header.topbar h1 { font-size: 15px; font-weight: 700; margin: 0; }
+  header.topbar .sub { color: var(--ink-dim); font-size: 12.5px; }
+  header.topbar .meta { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-dim); }
+  .theme-btn {
+    border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink);
+    border-radius: 999px; padding: 5px 12px; cursor: pointer;
+  }
+  .theme-btn:hover { border-color: var(--accent); }
+
+  main { padding: 22px 20px 110px; max-width: 1180px; margin: 0 auto; }
+
+  .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; color: var(--accent); font-weight: 700; }
+  .variant-title { font-size: 18px; font-weight: 700; margin: 4px 0 2px; text-wrap: balance; }
+  .variant-desc { color: var(--ink-dim); font-size: 13px; max-width: 66ch; margin: 0 0 18px; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+
+  .thumb {
+    display: grid; gap: 3px; border-radius: 6px; overflow: hidden; background: var(--line);
+  }
+  .thumb .cell { background: var(--surface-2); }
+  .thumb.official .cell { outline: 1px dashed rgba(0,0,0,0.25); outline-offset: -1px; }
+
+  .vote-row { display: flex; align-items: center; gap: 6px; }
+  .vote-btn {
+    display: flex; align-items: center; gap: 5px; border: 1px solid var(--line-strong);
+    background: var(--surface-2); color: var(--ink-dim); border-radius: 999px;
+    padding: 4px 10px; cursor: pointer; font-size: 12.5px; font-weight: 600;
+  }
+  .vote-btn.like.active { color: var(--like); border-color: var(--like); background: color-mix(in srgb, var(--like) 14%, var(--surface-2)); }
+  .vote-btn.dislike.active { color: var(--dislike); border-color: var(--dislike); background: color-mix(in srgb, var(--dislike) 14%, var(--surface-2)); }
+  .vote-btn:hover { border-color: var(--accent); }
+
+  .anon-badge {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink-dim);
+  }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .toolbar select {
+    border: 1px solid var(--line-strong); border-radius: 7px; padding: 6px 10px;
+    background: var(--surface-2); color: var(--ink); font-weight: 600; font-size: 12.5px;
+  }
+  .toolbar .seg {
+    display: flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden;
+  }
+  .toolbar .seg button {
+    border: none; background: var(--surface-2); color: var(--ink-dim); padding: 6px 13px; cursor: pointer; font-size: 12.5px; font-weight: 600;
+  }
+  .toolbar .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .toolbar .seg button + button { border-left: 1px solid var(--line-strong); }
+
+  /* ===== Variant A: image-forward card grid ===== */
+  #variantA .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px;
+  }
+  #variantA .plan-card { padding: 0; overflow: hidden; cursor: pointer; text-align: left; border: 1px solid var(--line); }
+  #variantA .plan-card:hover { border-color: var(--accent); }
+  #variantA .plan-card .thumb { grid-template-columns: repeat(3, 1fr); aspect-ratio: 3 / 4; width: 100%; }
+  #variantA .plan-card .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+  #variantA .plan-card .county { font-weight: 700; font-size: 13.5px; }
+  #variantA .plan-card .time { font-size: 11.5px; color: var(--ink-dim); }
+  #variantA .plan-card .foot { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
+
+  /* ===== Variant B: dense data table ===== */
+  #variantB table { width: 100%; border-collapse: collapse; }
+  #variantB thead th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--ink-dim); padding: 8px 10px; border-bottom: 1.5px solid var(--line-strong);
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  #variantB thead th.active { color: var(--accent); }
+  #variantB thead th .arrow { font-size: 10px; margin-left: 3px; }
+  #variantB tbody tr { border-bottom: 1px solid var(--line); cursor: pointer; }
+  #variantB tbody tr:hover { background: var(--surface); }
+  #variantB tbody td { padding: 9px 10px; vertical-align: middle; }
+  #variantB .row-thumb { grid-template-columns: repeat(3, 1fr); width: 44px; aspect-ratio: 3/4; }
+  #variantB .county-cell { font-weight: 700; }
+  #variantB .filter-row { margin-bottom: 10px; }
+
+  /* ===== Variant C: county-grouped, geography-first ===== */
+  #variantC .county-rail {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px;
+  }
+  #variantC .county-chip {
+    display: flex; align-items: center; gap: 7px; border: 1.5px solid var(--line);
+    background: var(--surface); border-radius: 999px; padding: 7px 13px; cursor: pointer; font-weight: 600; font-size: 13px;
+  }
+  #variantC .county-chip[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+  #variantC .county-chip .count { color: var(--ink-dim); font-weight: 400; }
+  #variantC .county-section { margin-bottom: 22px; }
+  #variantC .county-section .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+  #variantC .county-section .head h3 { margin: 0; font-size: 15px; }
+  #variantC .county-section .head .n { font-size: 12px; color: var(--ink-dim); }
+  #variantC .row {
+    display: flex; gap: 14px; overflow-x: auto; padding-bottom: 4px;
+  }
+  #variantC .plan-card {
+    flex: 0 0 180px; padding: 0; overflow: hidden; cursor: pointer; text-align: left; border: 1px solid var(--line);
+  }
+  #variantC .plan-card:hover { border-color: var(--accent); }
+  #variantC .plan-card .thumb { grid-template-columns: repeat(3, 1fr); aspect-ratio: 3/2.4; width: 100%; }
+  #variantC .plan-card .body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 5px; }
+  #variantC .plan-card .time { font-size: 11px; color: var(--ink-dim); }
+
+  /* ===== Shared detail overlay ===== */
+  .overlay-scrim {
+    position: fixed; inset: 0; background: rgba(20, 16, 10, 0.55); backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 100;
+  }
+  .detail-panel {
+    background: var(--surface); border-radius: 14px; max-width: 640px; width: 100%;
+    max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow); border: 1px solid var(--line);
+  }
+  .detail-panel .dp-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    padding: 16px 18px 0;
+  }
+  .detail-panel .dp-title { font-size: 17px; font-weight: 700; margin: 0 0 2px; }
+  .detail-panel .dp-sub { font-size: 12.5px; color: var(--ink-dim); }
+  .detail-panel .close-btn {
+    border: none; background: var(--surface-2); border-radius: 50%; width: 30px; height: 30px;
+    cursor: pointer; font-size: 15px; color: var(--ink-dim); flex: none;
+  }
+  .detail-panel .close-btn:hover { color: var(--ink); }
+  .detail-panel .dp-body { padding: 14px 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .detail-panel .thumb.big { grid-template-columns: repeat(3, 1fr); width: 100%; aspect-ratio: 3/2.2; }
+  .detail-panel .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+  .detail-panel .toggle-row input { accent-color: var(--accent); }
+  .detail-panel .stat-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+  .detail-panel .stat-chip {
+    flex: 1; min-width: 120px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2);
+  }
+  .detail-panel .stat-chip .name { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 12px; margin-bottom: 3px; }
+  .detail-panel .stat-chip .pop { font-size: 14px; font-weight: 700; }
+  .detail-panel .action-row { display: flex; align-items: center; justify-content: space-between; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; flex: none; }
+
+  /* ---- floating switcher (shared) ---- */
+  .switcher {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 4px; background: var(--ink); color: var(--paper);
+    border-radius: 999px; padding: 6px; box-shadow: var(--shadow); z-index: 50; font-size: 13px;
+  }
+  .switcher button.arrow {
+    width: 30px; height: 30px; border-radius: 50%; border: none; background: transparent; color: inherit;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .switcher button.arrow:hover { background: rgba(255, 255, 255, 0.15); }
+  .switcher .label { padding: 0 10px; font-weight: 700; white-space: nowrap; }
+  .switcher .label .name { font-weight: 400; opacity: 0.75; margin-left: 6px; }
+
+  @media (max-width: 640px) {
+    #variantB table, #variantB thead, #variantB tbody, #variantB tr { display: block; }
+    #variantB thead tr { display: flex; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div>
+    <h1>原型／陳列室：瀏覽、排序、按讚、比較</h1>
+    <div class="sub">wayfinder ticket #7 · 假想縣市與方案（示範用，非真實資料） · 3 個列表版面，供討論用</div>
+  </div>
+  <div class="meta">
+    <span id="urlHint" class="nums"></span>
+    <button class="theme-btn" id="themeToggle" type="button">切換深／淺色</button>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<nav class="switcher" id="switcher" aria-label="原型變體切換">
+  <button class="arrow" id="prevBtn" type="button" aria-label="上一個變體">‹</button>
+  <span class="label" id="switcherLabel"></span>
+  <button class="arrow" id="nextBtn" type="button" aria-label="下一個變體">›</button>
+</nav>
+
+<div id="overlayRoot"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------- */
+  /* Fake data — counties, plans, seeded thumbnail grids               */
+  /* ---------------------------------------------------------------- */
+
+  var COUNTIES = ["東台縣", "西台縣", "南台縣", "北台縣"];
+  var D_COLORS = ["var(--d1)", "var(--d2)", "var(--d3)", "var(--d4)"];
+
+  function seededRandom(seed) {
+    var s = seed;
+    return function () {
+      s = (s * 1103515245 + 12345) & 0x7fffffff;
+      return (s % 1000) / 1000;
+    };
+  }
+
+  function generateGrid(seed, rows, cols, districtCount) {
+    var rand = seededRandom(seed);
+    var cells = [];
+    for (var i = 0; i < rows * cols; i++) {
+      cells.push(Math.floor(rand() * districtCount));
+    }
+    return cells;
+  }
+
+  var PLANS = [
+    { id: "p1", county: "東台縣", seats: 3, likes: 128, dislikes: 12, agoLabel: "3 天前", agoSort: 3, seed: 11,
+      districts: [{ pop: 15900, dev: 0.008 }, { pop: 16050, dev: 0.005 }, { pop: 15950, dev: -0.006 }] },
+    { id: "p2", county: "東台縣", seats: 3, likes: 54, dislikes: 40, agoLabel: "1 天前", agoSort: 1, seed: 23,
+      districts: [{ pop: 12400, dev: -0.222 }, { pop: 18900, dev: 0.184 }, { pop: 16600, dev: 0.039 }] },
+    { id: "p3", county: "西台縣", seats: 4, likes: 302, dislikes: 8, agoLabel: "1 週前", agoSort: 7, seed: 37,
+      districts: [{ pop: 21000, dev: 0.02 }, { pop: 20500, dev: -0.004 }, { pop: 20800, dev: 0.01 }, { pop: 20200, dev: -0.024 }] },
+    { id: "p4", county: "南台縣", seats: 3, likes: 12, dislikes: 3, agoLabel: "剛剛", agoSort: 0, seed: 5,
+      districts: [{ pop: 9800, dev: -0.03 }, { pop: 10100, dev: 0.0 }, { pop: 10200, dev: 0.01 }] },
+    { id: "p5", county: "南台縣", seats: 3, likes: 88, dislikes: 20, agoLabel: "2 天前", agoSort: 2, seed: 41,
+      districts: [{ pop: 8600, dev: -0.148 }, { pop: 11400, dev: 0.129 }, { pop: 10100, dev: 0.0 }] },
+    { id: "p6", county: "北台縣", seats: 3, likes: 45, dislikes: 5, agoLabel: "5 天前", agoSort: 5, seed: 53,
+      districts: [{ pop: 13100, dev: -0.012 }, { pop: 13300, dev: 0.003 }, { pop: 13350, dev: 0.007 }] }
+  ];
+  PLANS.forEach(function (p) { p.userVote = null; }); // 'like' | 'dislike' | null
+
+  function officialSeedFor(p) { return p.seed + 900; } // deterministic "official" pattern to overlay-compare against
+
+  /* ---------------------------------------------------------------- */
+  /* Shared state                                                      */
+  /* ---------------------------------------------------------------- */
+
+  var filterCounty = "ALL";
+  var sortKey = "likes"; // 'likes' | 'new' | 'controversial'
+  var tableSortKey = "likes";
+  var tableSortDir = "desc";
+  var activeCounty = "ALL"; // variant C rail
+
+  function filteredSorted() {
+    var list = PLANS.filter(function (p) { return filterCounty === "ALL" || p.county === filterCounty; });
+    if (sortKey === "likes") list = list.slice().sort(function (a, b) { return b.likes - a.likes; });
+    else if (sortKey === "new") list = list.slice().sort(function (a, b) { return a.agoSort - b.agoSort; });
+    else if (sortKey === "controversial") list = list.slice().sort(function (a, b) { return Math.min(b.likes, b.dislikes) - Math.min(a.likes, a.dislikes); });
+    return list;
+  }
+
+  function tableSorted() {
+    var list = PLANS.slice();
+    var dir = tableSortDir === "asc" ? 1 : -1;
+    list.sort(function (a, b) {
+      if (tableSortKey === "county") return dir * a.county.localeCompare(b.county, "zh-Hant");
+      if (tableSortKey === "seats") return dir * (a.seats - b.seats);
+      if (tableSortKey === "likes") return dir * (a.likes - b.likes);
+      if (tableSortKey === "dislikes") return dir * (a.dislikes - b.dislikes);
+      if (tableSortKey === "new") return dir * (a.agoSort - b.agoSort);
+      return 0;
+    });
+    return list;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* DOM helpers                                                        */
+  /* ---------------------------------------------------------------- */
+
+  function el(tag, attrs, children) {
+    var node = document.createElement(tag);
+    attrs = attrs || {};
+    Object.keys(attrs).forEach(function (k) {
+      if (k === "class") node.className = attrs[k];
+      else if (k === "html") node.innerHTML = attrs[k];
+      else if (k.indexOf("on") === 0 && typeof attrs[k] === "function") node.addEventListener(k.slice(2), attrs[k]);
+      else if (attrs[k] !== null && attrs[k] !== undefined) node.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) {
+      if (c == null) return;
+      node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    });
+    return node;
+  }
+
+  function renderThumb(seed, districtCount, rows, cols, extraClass) {
+    var cells = generateGrid(seed, rows, cols, districtCount);
+    var thumb = el("div", { class: "thumb" + (extraClass ? " " + extraClass : ""), style: "grid-template-rows: repeat(" + rows + ", 1fr);" });
+    cells.forEach(function (d) {
+      thumb.appendChild(el("div", { class: "cell", style: "background:" + D_COLORS[d] + ";" }));
+    });
+    return thumb;
+  }
+
+  function voteRow(plan, onChange) {
+    var row = el("div", { class: "vote-row" });
+    var likeBtn = el("button", {
+      class: "vote-btn like" + (plan.userVote === "like" ? " active" : ""), type: "button",
+      onclick: function (e) {
+        e.stopPropagation();
+        plan.userVote = plan.userVote === "like" ? null : "like";
+        onChange();
+      }
+    }, ["👍", el("span", { class: "nums" }, [String(plan.likes + (plan.userVote === "like" ? 1 : 0))])]);
+    var dislikeBtn = el("button", {
+      class: "vote-btn dislike" + (plan.userVote === "dislike" ? " active" : ""), type: "button",
+      onclick: function (e) {
+        e.stopPropagation();
+        plan.userVote = plan.userVote === "dislike" ? null : "dislike";
+        onChange();
+      }
+    }, ["👎", el("span", { class: "nums" }, [String(plan.dislikes + (plan.userVote === "dislike" ? 1 : 0))])]);
+    row.appendChild(likeBtn);
+    row.appendChild(dislikeBtn);
+    return row;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Detail overlay (shared across all variants)                       */
+  /* ---------------------------------------------------------------- */
+
+  var showOfficialOverlay = false;
+
+  function openDetail(plan) {
+    showOfficialOverlay = false;
+    renderDetail(plan);
+  }
+
+  function closeDetail() {
+    document.getElementById("overlayRoot").innerHTML = "";
+  }
+
+  function renderDetail(plan) {
+    var root = document.getElementById("overlayRoot");
+    root.innerHTML = "";
+    var scrim = el("div", {
+      class: "overlay-scrim",
+      onclick: function (e) { if (e.target === scrim) closeDetail(); }
+    });
+    var panel = el("div", { class: "detail-panel" });
+
+    var head = el("div", { class: "dp-head" }, [
+      el("div", {}, [
+        el("div", { class: "dp-title" }, [plan.county + "・" + plan.seats + " 個選區的方案"]),
+        el("div", { class: "dp-sub" }, [el("span", { class: "anon-badge" }, ["🕶️ 匿名分享"]), " · " + plan.agoLabel])
+      ]),
+      el("button", { class: "close-btn", type: "button", "aria-label": "關閉", onclick: closeDetail }, ["✕"])
+    ]);
+    panel.appendChild(head);
+
+    var body = el("div", { class: "dp-body" });
+    body.appendChild(renderThumb(plan.seed, plan.seats, 4, 3, "big"));
+
+    body.appendChild(el("label", { class: "toggle-row" }, [
+      el("input", {
+        type: "checkbox", checked: showOfficialOverlay ? "checked" : null,
+        onchange: function (e) { showOfficialOverlay = e.target.checked; renderDetail(plan); }
+      }),
+      "疊顯示現行官方選區（視覺疊圖比較）"
+    ]));
+    if (showOfficialOverlay) {
+      body.appendChild(el("div", { class: "note", style: "font-size:11.5px; color:var(--ink-dim); margin-top:-8px;" }, [
+        "虛線外框 = 現行官方選區邊界；底色 = 這份方案的指派結果。"
+      ]));
+      body.appendChild(renderThumb(officialSeedFor(plan), plan.seats, 4, 3, "big official"));
+    }
+
+    var statStrip = el("div", { class: "stat-strip" });
+    plan.districts.forEach(function (d, i) {
+      var chip = el("div", { class: "stat-chip" });
+      chip.appendChild(el("div", { class: "name" }, [el("span", { class: "swatch", style: "background:" + D_COLORS[i] + ";" }), "第" + (i + 1) + "選區"]));
+      chip.appendChild(el("div", { class: "pop nums" }, [d.pop.toLocaleString("zh-Hant") + " 人"]));
+      var devPct = (d.dev * 100).toFixed(1);
+      var devLabel = (d.dev > 0 ? "+" : "") + devPct + "%";
+      chip.appendChild(el("div", { style: "font-size:11px; color:" + (Math.abs(d.dev) > 0.15 ? "var(--caution)" : "var(--ink-dim)") + ";" }, ["與平均差 " + devLabel]));
+      statStrip.appendChild(chip);
+    });
+    body.appendChild(statStrip);
+
+    var actionRow = el("div", { class: "action-row" });
+    actionRow.appendChild(voteRow(plan, function () { renderDetail(plan); refreshCurrentVariant(); }));
+    actionRow.appendChild(el("span", { class: "note", style: "font-size:11.5px; color:var(--ink-dim);" }, ["v0：無留言功能"]));
+    body.appendChild(actionRow);
+
+    panel.appendChild(body);
+    scrim.appendChild(panel);
+    root.appendChild(scrim);
+  }
+
+  /* ================================================================ */
+  /* Variant A — image-forward card grid                               */
+  /* ================================================================ */
+
+  function renderVariantA(root) {
+    var wrap = el("section", { id: "variantA" });
+    wrap.appendChild(el("div", { class: "eyebrow" }, ["變體 A"]));
+    wrap.appendChild(el("h2", { class: "variant-title" }, ["卡片牆 — 縮圖優先，Pinterest 式瀏覽"]));
+    wrap.appendChild(el("p", { class: "variant-desc" }, [
+      "每張卡片以方案縮圖為主視覺，縣市名稱與讚/倒讚數放在卡片下方。適合「隨便逛逛、被畫得好看的方案吸引」這種瀏覽情境。"
+    ]));
+
+    var toolbar = el("div", { class: "toolbar" });
+    var countySelect = el("select", {
+      onchange: function (e) { filterCounty = e.target.value; rerenderA(); }
+    });
+    countySelect.appendChild(el("option", { value: "ALL" }, ["全部縣市"]));
+    COUNTIES.forEach(function (c) {
+      var opt = el("option", { value: c }, [c]);
+      if (filterCounty === c) opt.setAttribute("selected", "selected");
+      countySelect.appendChild(opt);
+    });
+    toolbar.appendChild(countySelect);
+
+    var seg = el("div", { class: "seg" });
+    [["likes", "讚數最多"], ["new", "最新分享"], ["controversial", "最具爭議"]].forEach(function (pair) {
+      seg.appendChild(el("button", {
+        type: "button", "aria-pressed": String(sortKey === pair[0]),
+        onclick: function () { sortKey = pair[0]; rerenderA(); }
+      }, [pair[1]]));
+    });
+    toolbar.appendChild(seg);
+    wrap.appendChild(toolbar);
+
+    var grid = el("div", { class: "grid" });
+    filteredSorted().forEach(function (p) {
+      var card = el("button", { class: "card plan-card", type: "button", onclick: function () { openDetail(p); } });
+      card.appendChild(renderThumb(p.seed, p.seats, 4, 3));
+      var bodyEl = el("div", { class: "body" });
+      bodyEl.appendChild(el("div", { class: "county" }, [p.county]));
+      bodyEl.appendChild(el("div", { class: "time" }, [el("span", { class: "anon-badge" }, ["🕶️ 匿名"]), " · " + p.agoLabel]));
+      var foot = el("div", { class: "foot" });
+      foot.appendChild(voteRow(p, function () { rerenderA(); }));
+      foot.appendChild(el("span", { class: "note", style: "font-size:11px; color:var(--ink-dim);" }, [p.seats + " 選區"]));
+      bodyEl.appendChild(foot);
+      card.appendChild(bodyEl);
+      grid.appendChild(card);
+    });
+    wrap.appendChild(grid);
+
+    root.innerHTML = "";
+    root.appendChild(wrap);
+  }
+  var rerenderA = function () { renderVariantA(document.getElementById("app")); };
+
+  /* ================================================================ */
+  /* Variant B — dense data table                                      */
+  /* ================================================================ */
+
+  function tableHeader(label, key) {
+    var active = tableSortKey === key;
+    return el("th", {
+      class: active ? "active" : "",
+      onclick: function () {
+        if (tableSortKey === key) tableSortDir = tableSortDir === "asc" ? "desc" : "asc";
+        else { tableSortKey = key; tableSortDir = "desc"; }
+        rerenderB();
+      }
+    }, [label, active ? el("span", { class: "arrow" }, [tableSortDir === "asc" ? "▲" : "▼"]) : null]);
+  }
+
+  function renderVariantB(root) {
+    var wrap = el("section", { id: "variantB" });
+    wrap.appendChild(el("div", { class: "eyebrow" }, ["變體 B"]));
+    wrap.appendChild(el("h2", { class: "variant-title" }, ["資料表 — 密集列表，點欄位標題排序"]));
+    wrap.appendChild(el("p", { class: "variant-desc" }, [
+      "所有方案一次列出，點欄位標題切換排序方向，適合想快速比較數字（讚數、倒讚數、選區數）的瀏覽情境，資訊密度最高。"
+    ]));
+
+    var filterRow = el("div", { class: "filter-row toolbar" });
+    var countySelect = el("select", { onchange: function (e) { filterCounty = e.target.value; rerenderB(); } });
+    countySelect.appendChild(el("option", { value: "ALL" }, ["全部縣市"]));
+    COUNTIES.forEach(function (c) {
+      var opt = el("option", { value: c }, [c]);
+      if (filterCounty === c) opt.setAttribute("selected", "selected");
+      countySelect.appendChild(opt);
+    });
+    filterRow.appendChild(countySelect);
+    wrap.appendChild(filterRow);
+
+    var table = el("table");
+    var thead = el("thead");
+    var headRow = el("tr", {}, [
+      el("th", {}, ["縮圖"]),
+      tableHeader("縣市", "county"),
+      tableHeader("選區數", "seats"),
+      tableHeader("讚", "likes"),
+      tableHeader("倒讚", "dislikes"),
+      tableHeader("分享時間", "new")
+    ]);
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = el("tbody");
+    tableSorted().filter(function (p) { return filterCounty === "ALL" || p.county === filterCounty; }).forEach(function (p) {
+      var tr = el("tr", { onclick: function () { openDetail(p); } });
+      var thumbTd = el("td", {});
+      thumbTd.appendChild(renderThumb(p.seed, p.seats, 4, 3, "row-thumb"));
+      tr.appendChild(thumbTd);
+      tr.appendChild(el("td", { class: "county-cell" }, [p.county]));
+      tr.appendChild(el("td", { class: "nums" }, [String(p.seats)]));
+      var likeTd = el("td", {});
+      likeTd.appendChild(voteRow(p, function () { rerenderB(); }));
+      tr.appendChild(el("td", { class: "nums" }, [String(p.likes + (p.userVote === "like" ? 1 : 0))]));
+      tr.appendChild(el("td", { class: "nums" }, [String(p.dislikes + (p.userVote === "dislike" ? 1 : 0))]));
+      tr.appendChild(el("td", {}, [p.agoLabel]));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+
+    root.innerHTML = "";
+    root.appendChild(wrap);
+  }
+  var rerenderB = function () { renderVariantB(document.getElementById("app")); };
+
+  /* ================================================================ */
+  /* Variant C — county-grouped, geography-first                       */
+  /* ================================================================ */
+
+  function renderVariantC(root) {
+    var wrap = el("section", { id: "variantC" });
+    wrap.appendChild(el("div", { class: "eyebrow" }, ["變體 C"]));
+    wrap.appendChild(el("h2", { class: "variant-title" }, ["依縣市分區瀏覽 — 地理優先"]));
+    wrap.appendChild(el("p", { class: "variant-desc" }, [
+      "上方是縣市快選列，選一個縣市只看該縣市的方案（橫向捲動），或維持「全部」時每個縣市各自分段呈現。適合「我想看我家鄉的方案」這種目標明確的瀏覽情境。"
+    ]));
+
+    var rail = el("div", { class: "county-rail" });
+    rail.appendChild(el("button", {
+      class: "county-chip", type: "button", "aria-pressed": String(activeCounty === "ALL"),
+      onclick: function () { activeCounty = "ALL"; rerenderC(); }
+    }, ["全部縣市", el("span", { class: "count" }, [" " + PLANS.length])]));
+    COUNTIES.forEach(function (c) {
+      var n = PLANS.filter(function (p) { return p.county === c; }).length;
+      rail.appendChild(el("button", {
+        class: "county-chip", type: "button", "aria-pressed": String(activeCounty === c),
+        onclick: function () { activeCounty = c; rerenderC(); }
+      }, [c, el("span", { class: "count" }, [" " + n])]));
+    });
+    wrap.appendChild(rail);
+
+    var countiesToShow = activeCounty === "ALL" ? COUNTIES : [activeCounty];
+    countiesToShow.forEach(function (c) {
+      var plans = PLANS.filter(function (p) { return p.county === c; }).slice().sort(function (a, b) { return b.likes - a.likes; });
+      if (plans.length === 0) return;
+      var section = el("div", { class: "county-section" });
+      var head = el("div", { class: "head" }, [
+        el("h3", {}, [c]),
+        el("span", { class: "n" }, [plans.length + " 份方案"])
+      ]);
+      section.appendChild(head);
+      var row = el("div", { class: "row" });
+      plans.forEach(function (p) {
+        var card = el("button", { class: "card plan-card", type: "button", onclick: function () { openDetail(p); } });
+        card.appendChild(renderThumb(p.seed, p.seats, 4, 3));
+        var bodyEl = el("div", { class: "body" });
+        bodyEl.appendChild(el("div", { class: "time" }, [p.agoLabel + " · " + p.seats + " 選區"]));
+        bodyEl.appendChild(voteRow(p, function () { rerenderC(); }));
+        card.appendChild(bodyEl);
+        row.appendChild(card);
+      });
+      section.appendChild(row);
+      wrap.appendChild(section);
+    });
+
+    root.innerHTML = "";
+    root.appendChild(wrap);
+  }
+  var rerenderC = function () { renderVariantC(document.getElementById("app")); };
+
+  /* ================================================================ */
+  /* Switcher                                                           */
+  /* ================================================================ */
+
+  var VARIANTS = [
+    { key: "A", name: "卡片牆", render: renderVariantA },
+    { key: "B", name: "資料表", render: renderVariantB },
+    { key: "C", name: "依縣市分區", render: renderVariantC }
+  ];
+
+  function currentVariantKey() {
+    var params = new URLSearchParams(window.location.search);
+    var v = params.get("variant");
+    return VARIANTS.some(function (x) { return x.key === v; }) ? v : "A";
+  }
+
+  function setVariant(key) {
+    var params = new URLSearchParams(window.location.search);
+    params.set("variant", key);
+    window.history.replaceState({}, "", window.location.pathname + "?" + params.toString());
+    render();
+  }
+
+  function refreshCurrentVariant() {
+    var variant = VARIANTS.find(function (v) { return v.key === currentVariantKey(); });
+    variant.render(document.getElementById("app"));
+  }
+
+  function render() {
+    var key = currentVariantKey();
+    var variant = VARIANTS.find(function (v) { return v.key === key; });
+    variant.render(document.getElementById("app"));
+    document.getElementById("switcherLabel").textContent = variant.key;
+    document.getElementById("switcherLabel").appendChild(el("span", { class: "name" }, [variant.name]));
+    document.getElementById("urlHint").textContent = "?variant=" + variant.key;
+  }
+
+  function cycle(delta) {
+    var key = currentVariantKey();
+    var idx = VARIANTS.findIndex(function (v) { return v.key === key; });
+    var next = VARIANTS[(idx + delta + VARIANTS.length) % VARIANTS.length];
+    setVariant(next.key);
+  }
+
+  document.getElementById("prevBtn").addEventListener("click", function () { cycle(-1); });
+  document.getElementById("nextBtn").addEventListener("click", function () { cycle(1); });
+
+  document.addEventListener("keydown", function (e) {
+    var tag = (e.target && e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select" || (e.target && e.target.isContentEditable)) return;
+    if (e.key === "Escape") { closeDetail(); return; }
+    if (document.getElementById("overlayRoot").children.length) return; // don't cycle variants while modal is open
+    if (e.key === "ArrowLeft") cycle(-1);
+    if (e.key === "ArrowRight") cycle(1);
+  });
+
+  var rootEl = document.documentElement;
+  document.getElementById("themeToggle").addEventListener("click", function () {
+    var current = rootEl.getAttribute("data-theme");
+    var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var effectiveDark = current ? current === "dark" : prefersDark;
+    rootEl.setAttribute("data-theme", effectiveDark ? "light" : "dark");
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
