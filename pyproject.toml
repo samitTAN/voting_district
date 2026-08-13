@@ -1,0 +1,17 @@
+[project]
+name = "voting-district"
+version = "0.0.1"
+description = "自己的選區自己畫 — 選區重劃參與式工具"
+requires-python = ">=3.14"
+dependencies = [
+    "requests>=2.34",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1",
+    "mypy>=1.13",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
