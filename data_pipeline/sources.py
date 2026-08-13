@@ -19,18 +19,29 @@ import requests
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 
 VILLAGE_TOPOLOGY_URL = "https://raw.githubusercontent.com/g0v/twgeojson/master/json/twVillage1982.topo.json"
-OFFICIAL_ZONES_URL = "https://raw.githubusercontent.com/kiang/db.cec.gov.tw/master/data/ly/2024/zones.json"
+OFFICIAL_DISTRICTS_URL = "https://raw.githubusercontent.com/kiang/db.cec.gov.tw/master/data/ly/2024/zones.json"
 POPULATION_API = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/{yyymm}"
 
 
-def _cached_get_json(url: str, cache_file: Path, *, force_refresh: bool = False) -> dict:
+def _read_cache(cache_file: Path, *, force_refresh: bool):
     if cache_file.exists() and not force_refresh:
         return json.loads(cache_file.read_text())
+    return None
+
+
+def _write_cache(cache_file: Path, data) -> None:
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(json.dumps(data, ensure_ascii=False))
+
+
+def _cached_get_json(url: str, cache_file: Path, *, force_refresh: bool = False) -> dict:
+    cached = _read_cache(cache_file, force_refresh=force_refresh)
+    if cached is not None:
+        return cached
     response = requests.get(url, timeout=60)
     response.raise_for_status()
     data = response.json()
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(json.dumps(data, ensure_ascii=False))
+    _write_cache(cache_file, data)
     return data
 
 
@@ -40,9 +51,9 @@ def fetch_village_topology(*, force_refresh: bool = False) -> dict:
     )
 
 
-def fetch_official_zones(*, force_refresh: bool = False) -> dict:
+def fetch_official_districts(*, force_refresh: bool = False) -> dict:
     return _cached_get_json(
-        OFFICIAL_ZONES_URL, RAW_DIR / "ly_2024_zones.json", force_refresh=force_refresh
+        OFFICIAL_DISTRICTS_URL, RAW_DIR / "official_districts_2024.json", force_refresh=force_refresh
     )
 
 
@@ -50,8 +61,9 @@ def fetch_population(yyymm: str, *, force_refresh: bool = False) -> list[dict]:
     """The ris.gov.tw API paginates nationwide village population figures;
     this walks every page and caches the concatenated result."""
     cache_file = RAW_DIR / f"population_{yyymm}.json"
-    if cache_file.exists() and not force_refresh:
-        return json.loads(cache_file.read_text())
+    cached = _read_cache(cache_file, force_refresh=force_refresh)
+    if cached is not None:
+        return cached
 
     rows: list[dict] = []
     url = POPULATION_API.format(yyymm=yyymm)
@@ -65,6 +77,5 @@ def fetch_population(yyymm: str, *, force_refresh: bool = False) -> list[dict]:
             break
         page += 1
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(json.dumps(rows, ensure_ascii=False))
+    _write_cache(cache_file, rows)
     return rows

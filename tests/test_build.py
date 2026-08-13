@@ -20,7 +20,7 @@ def test_normalize_town_name_passes_through_unknown_names():
 
 
 def test_townships_for_county_maps_normalized_names_to_district_numbers():
-    zones_geojson = {
+    official_districts_geojson = {
         "features": [
             {"properties": {"id": 1000501, "name": "苗栗縣第01選區", "areas": "苗栗縣苑裡鎮,苗栗縣通霄鎮"}},
             {"properties": {"id": 1000502, "name": "苗栗縣第02選區", "areas": "苗栗縣苗栗市,苗栗縣頭份市"}},
@@ -28,7 +28,7 @@ def test_townships_for_county_maps_normalized_names_to_district_numbers():
         ]
     }
 
-    result = townships_for_county(zones_geojson, "苗栗縣")
+    result = townships_for_county(official_districts_geojson, "苗栗縣")
 
     assert result == {
         "苑裡鎮": 1,
@@ -38,6 +38,22 @@ def test_townships_for_county_maps_normalized_names_to_district_numbers():
     }
     # 1000501 -> district 1, 1000502 -> district 2: last two digits of the
     # official id are the within-county district number.
+
+
+def test_townships_for_county_raises_if_a_township_is_split_across_districts():
+    # A township whose villages are actually split between two districts
+    # (a documented CEC practice) would otherwise silently collapse to
+    # "whichever district's feature we saw last" — fail loudly instead,
+    # since village-level splits aren't something this join can resolve.
+    official_districts_geojson = {
+        "features": [
+            {"properties": {"id": 1000401, "name": "新竹縣第01選區", "areas": "新竹縣竹北市,新竹縣新埔鎮"}},
+            {"properties": {"id": 1000402, "name": "新竹縣第02選區", "areas": "新竹縣竹北市,新竹縣竹東鎮"}},
+        ]
+    }
+
+    with pytest.raises(MissingJoinError, match="竹北市"):
+        townships_for_county(official_districts_geojson, "新竹縣")
 
 
 def test_index_population_normalizes_known_character_variants_in_village_names():

@@ -33,12 +33,22 @@ def normalize_town_name(name: str) -> str:
     return _TOWN_NAME_RENAMES.get(name, name)
 
 
-def townships_for_county(zones_geojson: dict, county_name: str) -> dict[str, int]:
+def townships_for_county(official_districts_geojson: dict, county_name: str) -> dict[str, int]:
     """Map each of the county's townships (name, normalized) to its official
     legislative district number (1-based, scoped to the county — the last two
-    digits of the zone's national id)."""
+    digits of the zone's national id).
+
+    Raises MissingJoinError if a township is listed under more than one
+    district — CEC does sometimes split a township's villages across
+    districts (see docs/research/taiwan-electoral-district-data.md §4), but
+    this source only reports whole-township membership, so a real split
+    would otherwise silently collapse to "whichever district we saw last."
+    None of the counties this pipeline has been run against hit this case;
+    a genuinely split county needs a village-level correspondence source
+    instead of this one.
+    """
     result: dict[str, int] = {}
-    for feature in zones_geojson["features"]:
+    for feature in official_districts_geojson["features"]:
         props = feature["properties"]
         if not props["name"].startswith(county_name):
             continue
@@ -48,13 +58,29 @@ def townships_for_county(zones_geojson: dict, county_name: str) -> dict[str, int
             if not area.startswith(county_name):
                 continue
             town_name = normalize_town_name(area[len(county_name):])
+            if town_name in result and result[town_name] != district_number:
+                raise MissingJoinError(
+                    f"{town_name} is split across districts {result[town_name]} and "
+                    f"{district_number} — this source only has township-level "
+                    f"correspondence, which can't represent a village-level split"
+                )
             result[town_name] = district_number
     return result
 
 
 def index_population(rows: list[dict], county_name: str) -> dict[tuple[str, str], int]:
     """Map (township, village) -> population, for one county's rows out of
-    the (nationwide) ris.gov.tw population dataset."""
+    the (nationwide) ris.gov.tw population dataset.
+
+    Joins by (township, village) name rather than ris.gov.tw's `district_code`
+    field: that code's last four digits are a per-township sequential index,
+    but in a different village order than the boundary file's own VILLAGESN
+    numbering (confirmed by inspection — e.g. for 苗栗縣三義鄉, ris.gov.tw's
+    ...0001 is 廣盛村 while the boundary file's ...0001 is 西湖村). Joining on
+    those two codes directly would silently cross-wire population onto the
+    wrong village. Name matching, with MissingJoinError on any miss, is the
+    safer join even though it needs the character-variant table below.
+    """
     result: dict[tuple[str, str], int] = {}
     for row in rows:
         site_id = row["site_id"]
